@@ -17,6 +17,7 @@ namespace xib2xaml
             }
 
             var convert = new Converter(args[0], args[1]);
+            //var convert = new Converter("AnimalTypes_iPhone.xib", "test.xaml");
             convert.ConvertFile();
         }
     }
@@ -106,10 +107,10 @@ namespace xib2xaml
                     {
                         if (line.Contains("outlet"))
                         {
-                            var outInfo = line.Split('"');
-                            var outKey = line.Substring(line.IndexOf(outInfo[0]), line.IndexOf(outInfo[1]));
-                            var outVal = line.Substring(line.IndexOf(outInfo[2]), line.IndexOf(outInfo[3]));
-                            Outlets.Add(outKey, outVal);
+                            var doc = XDocument.Parse(line);
+                                var outKey = doc.Root.Element("outlet").Attribute("property").Value;
+                                var outVal = doc.Root.Element("outlet").Attribute("destination").Value;
+                                Outlets.Add(outKey, outVal);
                         }
                     }
                 }
