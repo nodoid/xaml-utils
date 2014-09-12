@@ -93,21 +93,24 @@ namespace xib2xaml
             var Outlets = new Dictionary<string, string>();
             using (var reader = File.OpenText(infile))
             {
-                var line = await reader.ReadLineAsync();
-                if (line.Contains("UIView"))
+                while (!reader.EndOfStream)
                 {
-                    NumOfViews++;
-                    var destList = line.Split('"');
-                    ViewIDs.Add(destList[2].Substring(line.IndexOf(destList[2]), line.IndexOf(destList[3])));
-                }
-                else
-                {
-                    if (line.Contains("outlet"))
+                    var line = await reader.ReadLineAsync();
+                    if (line.Contains("UIView"))
                     {
-                        var outInfo = line.Split('"');
-                        var outKey = line.Substring(line.IndexOf(outInfo[0]), line.IndexOf(outInfo[1]));
-                        var outVal = line.Substring(line.IndexOf(outInfo[2]), line.IndexOf(outInfo[3]));
-                        Outlets.Add(outKey, outVal);
+                        NumOfViews++;
+                        var destList = line.Split('"');
+                        ViewIDs.Add(destList[2].Substring(line.IndexOf(destList[2]), line.IndexOf(destList[3])));
+                    }
+                    else
+                    {
+                        if (line.Contains("outlet"))
+                        {
+                            var outInfo = line.Split('"');
+                            var outKey = line.Substring(line.IndexOf(outInfo[0]), line.IndexOf(outInfo[1]));
+                            var outVal = line.Substring(line.IndexOf(outInfo[2]), line.IndexOf(outInfo[3]));
+                            Outlets.Add(outKey, outVal);
+                        }
                     }
                 }
             }
@@ -121,46 +124,50 @@ namespace xib2xaml
                     string stringBlock = "", element = "";
                     using (var reader = File.OpenText(infile))
                     {
-                        var line = await reader.ReadLineAsync();
-                        if (line.Contains(fullSearch))
+                        while (!reader.EndOfStream)
                         {
-                            element = line.Substring(0, line.IndexOf(" "));
-                            var endElement = string.Format("</{0}>", element.Substring(1));
-                            while (!line.Contains(endElement))
-                                stringBlock += line;
-                        }
-                        ui.UIName = Outlets.FirstOrDefault(t => t.Value == search).Key;
-                        if (ui.UIName != "view")
-                        {
-                            ui.UIElement = element;
-                            var doc = XDocument.Parse(stringBlock);
-                            ui.UIXPos = doc.Root.Element("rect").Attribute("x").Value;
-                            ui.UIYPos = doc.Root.Element("rect").Attribute("y").Value;
-                            ui.UIWidth = doc.Root.Element("rect").Attribute("width").Value;
-                            ui.UIHeight = doc.Root.Element("rect").Attribute("height").Value;
-                            ui.Text = doc.Root.Element(element).Attribute("text").Value;
-                            if (string.IsNullOrEmpty(ui.Text))
-                                ui.Text = doc.Root.Element(element).Attribute("title").Value;
-                            ui.FontSize = doc.Root.Element("fontDescription").Attribute("pointSize").Value;
-                            ui.TextColor = doc.Root.Element("color").Attribute("cocoaTouchSystemColor").Value;
-                            if (string.IsNullOrEmpty(ui.TextColor))
+                            var line = await reader.ReadLineAsync();
+                            if (line.Contains(fullSearch))
                             {
-                                ui.ColorA = doc.Root.Element("color").Attribute("alpha").Value;
-                                ui.ColorB = doc.Root.Element("color").Attribute("blue").Value;
-                                ui.ColorG = doc.Root.Element("color").Attribute("green").Value;
-                                ui.ColorR = doc.Root.Element("red").Attribute("red").Value;
-                                ui.ColorW = doc.Root.Element("white").Attribute("white").Value;
+                                element = line.Substring(0, line.IndexOf(" "));
+                                var endElement = string.Format("</{0}>", element.Substring(1));
+                                while (!line.Contains(endElement))
+                                    stringBlock += line;
                             }
-                            ui.OtherDetails = doc.Root.Element("imageView").Attribute("image").Value;
-                            ui.TextHAlign = doc.Root.Element(element).Attribute("contentHorizontalAlignment").Value;
-                            ui.TextVAlign = doc.Root.Element(element).Attribute("contentVerticalAlignment").Value;
-                        }
-                        else
-                        {
+                            ui.UIName = Outlets.FirstOrDefault(t => t.Value == search).Key;
+                            if (ui.UIName != "view")
+                            {
+                                ui.UIElement = element;
+                                var doc = XDocument.Parse(stringBlock);
+                                ui.UIXPos = doc.Root.Element("rect").Attribute("x").Value;
+                                ui.UIYPos = doc.Root.Element("rect").Attribute("y").Value;
+                                ui.UIWidth = doc.Root.Element("rect").Attribute("width").Value;
+                                ui.UIHeight = doc.Root.Element("rect").Attribute("height").Value;
+                                ui.Text = doc.Root.Element(element).Attribute("text").Value;
+                                if (string.IsNullOrEmpty(ui.Text))
+                                    ui.Text = doc.Root.Element(element).Attribute("title").Value;
+                                ui.FontSize = doc.Root.Element("fontDescription").Attribute("pointSize").Value;
+                                ui.TextColor = doc.Root.Element("color").Attribute("cocoaTouchSystemColor").Value;
+                                if (string.IsNullOrEmpty(ui.TextColor))
+                                {
+                                    ui.ColorA = doc.Root.Element("color").Attribute("alpha").Value;
+                                    ui.ColorB = doc.Root.Element("color").Attribute("blue").Value;
+                                    ui.ColorG = doc.Root.Element("color").Attribute("green").Value;
+                                    ui.ColorR = doc.Root.Element("red").Attribute("red").Value;
+                                    ui.ColorW = doc.Root.Element("white").Attribute("white").Value;
+                                }
+                                ui.OtherDetails = doc.Root.Element("imageView").Attribute("image").Value;
+                                ui.TextHAlign = doc.Root.Element(element).Attribute("contentHorizontalAlignment").Value;
+                                ui.TextVAlign = doc.Root.Element(element).Attribute("contentVerticalAlignment").Value;
+                            }
+                            else
+                            {
 
+                            }
+                            OutputUIElement(ui);
+                            ui = null;
                         }
-                        OutputUIElement(ui);
-                        ui = null;
+
                     }
                 }
             }
