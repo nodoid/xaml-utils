@@ -1,0 +1,16 @@
+﻿<Properties>
+  <MonoDevelop.Ide.Workspace ActiveConfiguration="Debug|x86" />
+  <MonoDevelop.Ide.Workbench ActiveDocument="xib2xaml/Program.cs">
+    <Files>
+      <File FileName="xib2xaml/Program.cs" Line="38" Column="38" />
+    </Files>
+  </MonoDevelop.Ide.Workbench>
+  <MonoDevelop.Ide.DebuggingService.Breakpoints>
+    <BreakpointStore>
+      <Breakpoint file="/Volumes/New Developer/Developer/xaml-utils/xib2xaml/xib2xaml/Program.cs" line="112" column="1" />
+      <Breakpoint file="/Volumes/New Developer/Developer/xaml-utils/xib2xaml/xib2xaml/Program.cs" line="210" column="1" />
+      <Breakpoint file="/Volumes/New Developer/Developer/xaml-utils/xib2xaml/xib2xaml/Program.cs" line="165" column="1" />
+    </BreakpointStore>
+  </MonoDevelop.Ide.DebuggingService.Breakpoints>
+  <MonoDevelop.Ide.DebuggingService.PinnedWatches />
+</Properties>
