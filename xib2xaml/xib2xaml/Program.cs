@@ -185,13 +185,17 @@ namespace xib2xaml
                                         ui.UIYPos = doc.Root.Element("rect").Attribute("y").Value;
                                         ui.UIWidth = doc.Root.Element("rect").Attribute("width").Value;
                                         ui.UIHeight = doc.Root.Element("rect").Attribute("height").Value;
-                                        if (element == "text")
+                                        if (element == "label")
                                             ui.Text = doc.Root.Element("label").Attribute("text").Value;
                                         if (element == "button")
                                             ui.Text = doc.Root.Element("state").Attribute("title").Value;
                                         ui.FontSize = doc.Root.Element("fontDescription").Attribute("pointSize").Value;
-                                        /*if (docTS.Contains("cocoaTouchSystemColor"))
-                                            ui.TextColor = doc.Root.Element("color").Attribute("cocoaTouchSystemColor").Value;*/
+                                        if (docTS.Contains("cocoaTouchSystemColor"))
+                                        {
+                                            nodet = doc.Root.Element("color").FirstNode;
+                                            nDoc = XDocument.Parse(nodet.ToString());
+                                            ui.TextColor = nDoc.Element("color").Attribute("cocoaTouchSystemColor").Value;
+                                        }
                                         if (string.IsNullOrEmpty(ui.TextColor) && element == "button")
                                         {
                                             ui.ColorA = nDoc.Element("color").Attribute("alpha").Value;
