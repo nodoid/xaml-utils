@@ -75,7 +75,7 @@ namespace xib2xaml
             outfile = outf;
         }
 
-        public async void ConvertFile()
+        public void ConvertFile()
         {
             if (File.Exists(outfile))
             {
@@ -141,7 +141,7 @@ namespace xib2xaml
                             while (!reader.EndOfStream)
                             {
                                 var fullSearch = string.Format("id=\"{0}\"", search);
-                                string stringBlock = "", element = "";         
+                                string element = "";         
                                 var line = reader.ReadLine();
                                 if (line.Contains(fullSearch))
                                 {
@@ -180,21 +180,20 @@ namespace xib2xaml
                                         var docTS = doc.ToString();
 
                                         ui.UIElement = doc.Root.Name.LocalName;
-                                        
                                         ui.UIXPos = doc.Root.Element("rect").Attribute("x").Value;
                                         ui.UIYPos = doc.Root.Element("rect").Attribute("y").Value;
                                         ui.UIWidth = doc.Root.Element("rect").Attribute("width").Value;
                                         ui.UIHeight = doc.Root.Element("rect").Attribute("height").Value;
                                         if (element == "label")
-                                            ui.Text = doc.Root.Element("label").Attribute("text").Value;
+                                            ui.Text = doc.Root.Attribute("text").Value;
                                         if (element == "button")
                                             ui.Text = doc.Root.Element("state").Attribute("title").Value;
-                                        ui.FontSize = doc.Root.Element("fontDescription").Attribute("pointSize").Value;
+                                        if (docTS.Contains("fontDescription"))
+                                            ui.FontSize = doc.Root.Element("fontDescription").Attribute("pointSize").Value;
                                         if (docTS.Contains("cocoaTouchSystemColor"))
                                         {
-                                            nodet = doc.Root.Element("color").FirstNode;
-                                            nDoc = XDocument.Parse(nodet.ToString());
-                                            ui.TextColor = nDoc.Element("color").Attribute("cocoaTouchSystemColor").Value;
+                                            var name = XName.Get("color");
+                                            ui.TextColor = doc.Root.Element(name).Attribute("cocoaTouchSystemColor").Value;
                                         }
                                         if (string.IsNullOrEmpty(ui.TextColor) && element == "button")
                                         {
@@ -267,31 +266,34 @@ namespace xib2xaml
 
                 writer.WriteLine(string.Format("AbsoluteLayout.LayoutBounds=\"{0},{1},{2},{3}\"", ui.UIXPos, ui.UIYPos, ui.UIWidth, ui.UIHeight));
 
-                if (!string.IsNullOrEmpty(ui.BackgroundColor))
-                    writer.WriteLine(string.Format("BackgroundColor=\"{0}\"", ui.BackgroundColor));
-                if (!string.IsNullOrEmpty(ui.TextColor))
-                    writer.WriteLine(string.Format("TextColor=\"{0}\"", ui.TextColor));
-                else
+                if (ui.UIElement != "scrollView")
                 {
-                    if (string.IsNullOrEmpty(ui.ColorA))
-                    {
-                        int r = (int)(255 * double.Parse(ui.ColorR));
-                        int g = (int)(255 * double.Parse(ui.ColorG));
-                        int b = (int)(255 * double.Parse(ui.ColorB));
-                        writer.WriteLine(string.Format("TextColor=\"#{0}{1}{2}\"", r.ToString("X"), g.ToString("X"), b.ToString("X")));
-                    }
+                    if (!string.IsNullOrEmpty(ui.BackgroundColor))
+                        writer.WriteLine(string.Format("BackgroundColor=\"{0}\"", ui.BackgroundColor));
+                    if (!string.IsNullOrEmpty(ui.TextColor))
+                        writer.WriteLine(string.Format("TextColor=\"{0}\"", ui.TextColor));
                     else
                     {
-                        int a = (int)(255 * double.Parse(ui.ColorA));
-                        int r = (int)(255 * double.Parse(ui.ColorR));
-                        int g = (int)(255 * double.Parse(ui.ColorG));
-                        int b = (int)(255 * double.Parse(ui.ColorB));
-                        writer.WriteLine(string.Format("TextColor=\"#{0}{1}{2}{3}\"", a.ToString("X"), r.ToString("X"), g.ToString("X"), b.ToString("X")));
-                    }
+                        if (string.IsNullOrEmpty(ui.ColorA))
+                        {
+                            int r = (int)(255 * double.Parse(ui.ColorR));
+                            int g = (int)(255 * double.Parse(ui.ColorG));
+                            int b = (int)(255 * double.Parse(ui.ColorB));
+                            writer.WriteLine(string.Format("TextColor=\"#{0}{1}{2}\"", r.ToString("X"), g.ToString("X"), b.ToString("X")));
+                        }
+                        else
+                        {
+                            int a = (int)(255 * double.Parse(ui.ColorA));
+                            int r = (int)(255 * double.Parse(ui.ColorR));
+                            int g = (int)(255 * double.Parse(ui.ColorG));
+                            int b = (int)(255 * double.Parse(ui.ColorB));
+                            writer.WriteLine(string.Format("TextColor=\"#{0}{1}{2}{3}\"", a.ToString("X"), r.ToString("X"), g.ToString("X"), b.ToString("X")));
+                        }
                         
+                    }
+                    if (!string.IsNullOrEmpty(ui.OtherDetails))
+                        writer.WriteLine(ui.OtherDetails);
                 }
-                if (!string.IsNullOrEmpty(ui.OtherDetails))
-                    writer.WriteLine(ui.OtherDetails);
                 writer.WriteLine(" />");
                 writer.WriteLine();
             }
