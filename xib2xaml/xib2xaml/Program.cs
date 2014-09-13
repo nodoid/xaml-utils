@@ -13,57 +13,16 @@ namespace xib2xaml
     {
         public static void Main(string[] args)
         {
-            /* if (args.Length != 2)
+            if (args.Length != 2)
             {
                 Console.WriteLine("Usage : xib2xaml <infile>.xib <outfile>.xaml");
                 Environment.Exit(-1);
             }
 
-            var convert = new Converter(args[0], args[1]);*/
-            var convert = new Converter("AnimalTypes_iPhone.xib", "test25.xaml");
+            var convert = new Converter(args[0], args[1]);
             convert.ConvertFile();
         }
     }
-
-    class UIObject
-    {
-        public string UIName { get; set; }
-
-        public string UIElement { get; set; }
-
-        public string Text { get; set; }
-
-        public string FontSize { get; set; }
-
-        public string UIWidth { get; set; }
-
-        public string UIHeight { get; set; }
-
-        public string UIXPos { get; set; }
-
-        public string UIYPos { get; set; }
-
-        public string BackgroundColor { get; set; }
-
-        public string TextColor { get; set; }
-
-        public string OtherDetails { get; set; }
-
-        public string ColorA { get; set; }
-
-        public string ColorB { get; set; }
-
-        public string ColorG { get; set; }
-
-        public string ColorR { get; set; }
-
-        public string ColorW { get; set; }
-
-        public string TextHAlign { get; set; }
-
-        public string TextVAlign { get; set; }
-    }
-
 
     class Converter
     {
@@ -79,10 +38,10 @@ namespace xib2xaml
         {
             if (File.Exists(outfile))
             {
-                File.Delete(outfile);
-                CreateHeader();
-                //Console.WriteLine("{0} already exists", outfile);
-                //return;
+                /*File.Delete(outfile);
+                CreateHeader();*/
+                Console.WriteLine("{0} already exists", outfile);
+                return;
             }
             else
                 CreateHeader();
@@ -294,7 +253,7 @@ namespace xib2xaml
                     if (!string.IsNullOrEmpty(ui.OtherDetails))
                         writer.WriteLine(ui.OtherDetails);
                 }
-                writer.WriteLine(" />");
+                writer.WriteLine("/>");
                 writer.WriteLine();
             }
         }
