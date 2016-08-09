@@ -1,7 +1,7 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2012
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "xib2xaml", "xib2xaml\xib2xaml.csproj", "{F19DE458-2044-4C7C-B827-D62C6ACF72C6}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "xib2xaml", "xib2xaml.csproj", "{F19DE458-2044-4C7C-B827-D62C6ACF72C6}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -13,8 +13,5 @@ Global
 		{F19DE458-2044-4C7C-B827-D62C6ACF72C6}.Debug|x86.Build.0 = Debug|x86
 		{F19DE458-2044-4C7C-B827-D62C6ACF72C6}.Release|x86.ActiveCfg = Release|x86
 		{F19DE458-2044-4C7C-B827-D62C6ACF72C6}.Release|x86.Build.0 = Release|x86
-	EndGlobalSection
-	GlobalSection(MonoDevelopProperties) = preSolution
-		StartupItem = xib2xaml\xib2xaml.csproj
 	EndGlobalSection
 EndGlobal

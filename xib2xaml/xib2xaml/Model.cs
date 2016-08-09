@@ -12,6 +12,8 @@ namespace xib2xaml
 
         public string FontSize { get; set; }
 
+        public string FontStyle { get; set; }
+
         public string UIWidth { get; set; }
 
         public string UIHeight { get; set; }
@@ -24,7 +26,7 @@ namespace xib2xaml
 
         public string TextColor { get; set; }
 
-        public string OtherDetails { get; set; }
+        public string ImageName { get; set; }
 
         public string ColorA { get; set; }
 
@@ -36,9 +38,30 @@ namespace xib2xaml
 
         public string ColorW { get; set; }
 
+        public string BGColorA { get; set; }
+
+        public string BGColorB { get; set; }
+
+        public string BGColorG { get; set; }
+
+        public string BGColorR { get; set; }
+
+        public string BGColorW { get; set; }
+
         public string TextHAlign { get; set; }
 
         public string TextVAlign { get; set; }
+
+        public string Opaque { get; set; }
+
+        public string ContentHAlign { get; set; }
+
+        public string ContentVAlign { get; set; }
+
+        public string LineBreakMode { get; set; }
+
+        public string Enabled { get; set; }
+
     }
 }
 
