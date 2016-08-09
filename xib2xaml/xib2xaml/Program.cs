@@ -376,27 +376,40 @@ namespace xib2xaml
 
         NameValueCollection ProcessMakeDict(string doc)
         {
-            doc.Replace("<", "").Replace("/>", "");
             var ret = doc.Split('\n').ToList();
             var spc = new List<string>();
             foreach (var r in ret)
             {
                 if (!string.IsNullOrEmpty(r))
                 {
-                    var s = r.Split(' ').ToList();
-                    foreach (var t in s)
+                    var s = r.Split('"')
+                     .Select((element, index) => index % 2 == 0  // If even index
+                                           ? element.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)  // Split the item
+                                           : new string[] { element })  // Keep the entire item
+                     .SelectMany(element => element).ToList();
+                    
+                    for (var t = 1; t < s.Count; ++t)
                     {
-                        if (!t.Contains("<"))
+                        if (s[t].Contains("="))
+                            s[t] = s[t].Remove(s[t].IndexOf("="), 1);
+
+                        if (s[t].Contains("<"))
+                            s[t] = s[t].Remove(s[t].IndexOf("<"), 1);
+
+                        if (!string.IsNullOrEmpty(s[t]))
                         {
-                            if (t == s.Last())
+                            if (!s[t].Contains("<"))
                             {
-                                if (t.Contains("/>"))
-                                    spc.Add(t.Remove(t.Length - 2, 2));
+                                if (s[t] == s.Last())
+                                {
+                                    if (s[t].Contains("/>"))
+                                        spc.Add(s[t].Remove(s[t].Length - 2, 2));
+                                    else
+                                        spc.Add(s[t].Remove(s[t].Length - 1, 1));
+                                }
                                 else
-                                    spc.Add(t.Remove(t.Length - 1, 1));
+                                    spc.Add(s[t]);
                             }
-                            else
-                                spc.Add(t);
                         }
                     }
                 }
@@ -408,8 +421,6 @@ namespace xib2xaml
                 if (!string.IsNullOrEmpty(n))
                     space.Add(n);
             }
-            //space.RemoveAll(t => t.Contains("<"));
-            //space.RemoveAll(t => t.Contains(">"));
 
             var split = new List<string>();
             foreach (var s in space)
@@ -421,13 +432,13 @@ namespace xib2xaml
             var end = split.Count - 1 % 2 == 0 ? split.Count - 1 : split.Count - 2;
             for (var n = 0; n < end; n += 2)
             {
-                var first = split[n];
+                var first = split[n].Replace("/", "").Replace(">", "") ;
                 var last = split[n + 1].Replace("\"", "");
-                //if (!first.Contains("Attribute"))
-                //{
-                Console.WriteLine("key = {0}, value = {1}", first, last);
-                dict.Add(first, last);
-                //}
+                if (!string.IsNullOrEmpty(first))
+                {
+                    Console.WriteLine("key = {0}, value = {1}", first, last);
+                    dict.Add(first, last);
+                }
             }
 
             return dict;
@@ -707,7 +718,9 @@ namespace xib2xaml
                     if (!string.IsNullOrEmpty(ui.Text))
                         writer.WriteLine(string.Format("Text=\"{0}\"", ui.Text));
                     if (!string.IsNullOrEmpty(ui.FontSize))
-                        writer.WriteLine(string.Format("Font=\"{0}\"", ui.FontSize));
+                        writer.WriteLine(string.Format("TextSize=\"{0}\"", ui.FontSize));
+                    if (!string.IsNullOrEmpty(ui.FontStyle))
+                        writer.WriteLine(string.Format("FontFamily=\"{0}\"", ui.FontStyle));
                 }
                 else
                 {
