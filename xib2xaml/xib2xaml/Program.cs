@@ -1,9 +1,9 @@
 ﻿using System;
-using System.IO;
 using System.Collections.Generic;
+using System.Collections.Specialized;
+using System.IO;
 using System.Linq;
 using System.Xml.Linq;
-using System.Collections.Specialized;
 
 namespace xib2xaml
 {
@@ -11,19 +11,15 @@ namespace xib2xaml
     {
         public static void Main(string[] args)
         {
-#if !DEBUG
-            if (args.Length != 2)
+            if (args.Length < 2)
             {
-                Console.WriteLine("Usage : xib2xaml <infile>.xib <outfile>.xaml");
+                Console.WriteLine("Usage : xib2xaml -m | -f (MAUI or Forms) <infile>.xib [Optional] <outfile>.xaml");
                 Environment.Exit(-1);
             }
 
-            var convert = new Converter(args[0], args[1]);
+            var output = args.Length == 2 ? "" : args[2];
+            var convert = new Converter(args[0], args[1], output);
             convert.ConvertFile();
-#else
-            var convert = new Converter("Test.xib", "Test.xaml");
-            convert.ConvertFile();
-#endif
         }
     }
 
@@ -47,137 +43,162 @@ namespace xib2xaml
     class Converter
     {
         string infile, outfile;
-        Dictionary<string, string> Outlets = new Dictionary<string, string>();
+        bool isMaui = false, hasScrollview = false;
+        Dictionary<string, XElement> Outlets = new Dictionary<string, XElement>();
         UIObject ui;
 
-        public Converter(string inf, string outf)
+        public Converter(string usem, string inf, string outf = "")
         {
+            isMaui = usem.ToLower().Contains('m');
             infile = inf;
-            outfile = outf;
+            outfile = !string.IsNullOrEmpty(outf) ? outf : infile;
+            if (outfile == infile)
+            {
+                var ind = outfile.LastIndexOf('.');
+                outfile = outfile.Substring(0, ind) + ".xaml";
+            }
         }
 
         public void ConvertFile()
         {
-            if (File.Exists(outfile))
-            {
-                /*File.Delete(outfile);
-                CreateHeader();*/
-                Console.WriteLine("{0} already exists", outfile);
-                return;
-            }
-            else
-                CreateHeader();
+            Console.WriteLine();
+            Console.WriteLine("======================== NEW ===================");
+            Console.WriteLine();
 
-            int NumOfViews = 0;
-            var ViewIDs = new List<string>();
-            string connections = "";
-            using (var reader = File.OpenText(infile))
+            CreateHeader(isMaui, outfile);
+
+            var d = XDocument.Load(infile);
+            var drootelem = d.Root.Elements();
+
+            Console.WriteLine($"root element count = {drootelem.Count()}");
+            Outlets.Clear();
+            Generator(drootelem);
+
+            CreateFooter();
+        }
+
+        void Generator(IEnumerable<XElement> elements, bool fromScrollview = false)
+        {
+            Console.WriteLine($"element count = {elements.Count()}, fromScrollview = {fromScrollview}");
+            //Outlets.Clear();
+
+            if (!hasScrollview)
+                hasScrollview = fromScrollview;
+
+            if (!fromScrollview)
             {
-                while (!reader.EndOfStream)
+                Console.WriteLine("Not a scrollview");
+                foreach (var de in elements.Elements())
                 {
-                    var line = reader.ReadLine();
-                    if (line.Contains("connections"))
+                    if (!string.IsNullOrEmpty(de.Attribute("id")?.Value))
                     {
-                        var nl = reader.ReadLine();
-                        while (!nl.Contains("connections"))
+                        int res = 0;
+                        var val = int.TryParse(de.Attribute("id")?.Value, out res);
+                        if (res == 0)
                         {
-                            connections += nl + ":";
-                            nl = reader.ReadLine();
-                        }
-                    }
-                }
-            }
-
-            connections = connections.TrimEnd(':');
-
-            var connect = connections.Split(':').ToList();
-            foreach (var cnt in connect)
-            {
-                if (cnt.Contains("UIView"))
-                {
-                    NumOfViews++;
-                    var doc = XDocument.Parse(cnt);
-                    ViewIDs.Add(doc.Root.Attribute("destination").Value);
-                }
-                else
-                {
-                    var doc = XDocument.Parse(cnt);
-                    var outKey = doc.Root.Attribute("property").Value;
-                    var outVal = doc.Root.Attribute("destination").Value;
-                    Outlets.Add(outKey, outVal);
-                }
-            }
-
-            if (NumOfViews == 0)
-            {
-                Console.WriteLine("Identified element count = {0}", Outlets.Values.Count);
-                foreach (var search in Outlets.Values)
-                {
-                    string node = "";
-                    Console.WriteLine("search = {0}", search);
-                    using (var reader = File.OpenText(infile))
-                    {
-                        while (!reader.EndOfStream)
-                        {
-                            var fullSearch = string.Format("id=\"{0}\"", search);
-                            string element = "";
-                            var line = reader.ReadLine();
-                            if (line.Contains(fullSearch))
+                            if (!de.Name.ToString().Contains("constrain"))
+                                Console.WriteLine($"id = {de.Attribute("id").Value}, Name={de.Name}");
+                            var des = de.Descendants();
+                            foreach (var ds in des)
                             {
-                                try
+                                if (!string.IsNullOrEmpty(ds.Attribute("id")?.Value))
                                 {
-                                    var tt = line.Split('<');
-                                    element = tt[1].Split(' ')[0];
-                                    node += line + "\n";
-                                    var nl = reader.ReadLine();
-                                    if (!string.IsNullOrEmpty(nl))
+                                    if (ds.Name.ToString() != "constraint")
                                     {
-                                        while (!nl.Contains(element))
-                                        {
-                                            node += nl + "\n";
-                                            nl = reader.ReadLine();
-                                        }
-                                        node += "</" + element + ">";
-
-                                        ProcessNode(node, fullSearch);
-                                        reader.ReadToEnd();
+                                        Outlets.Add(ds.Attribute("id").Value, ds);
                                     }
-                                }
-                                catch (NullReferenceException e)
-                                {
-                                    Console.WriteLine("NullRef thrown ; {0}--{1}", e.Message, e.InnerException);
                                 }
                             }
                         }
                     }
                 }
-                CreateFooter();
             }
+            else
+            {
+               Outlets =  GenerateScrollview(elements);
+            }
+
+            Console.WriteLine($"Outlets count = {Outlets.Count}");
+
+            try
+            {
+                foreach (var node in Outlets)
+                {
+                    if (!fromScrollview)
+                    {
+                        ProcessNode(node.Value, node.Key);
+                    }
+                    else
+                    {
+                        if (node.Value.ToString().Contains("scrollView"))
+                        {
+                            Console.WriteLine("Create scrollview node");
+                            var t = node.Value.ToString();
+                            var start = t.IndexOf("<scrollView");
+                            var end = t.IndexOf("</subviews>");
+
+                            Console.WriteLine($"start = {start}, end = {end}, len = {t.Length}");
+
+                            t = t.Substring(start, end + 11);
+                            t += "</scrollView>";
+
+                            ProcessNode(XElement.Parse(t),node.Key);
+                        }
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                throw;
+            }
+            
         }
 
-        void ProcessNode(string node, string fullSearch)
+
+        Dictionary<string, XElement> GenerateScrollview(IEnumerable<XElement> elements)
         {
+            var dict = new Dictionary<string, XElement>();
+            var elem = elements.FirstOrDefault();
+
+            Console.WriteLine($"Name = {elem.Name}");
+
+            foreach (var db in elem.Elements())
+            {
+                if (db.Name == "subviews")
+                {
+                    var dt = db.Elements();
+                    foreach (var dd in dt)
+                    {
+                        if (!string.IsNullOrEmpty(dd.Attribute("id")?.Value))
+                        {
+                            if (!dd.Name.ToString().Contains("constrain"))
+                            {
+                                Console.WriteLine($"id = {dd.Attribute("id").Value}, Name={dd.Name}");
+                                dict.Add(dd.Attribute("id").Value, dd);
+                            }
+                        }
+                    }
+                }
+            }
+
+            return dict;
+        }
+
+        void ProcessNode(XElement node, string key)
+        {
+            if (node.Name.ToString().Contains("tabBar"))
+                return;
+
             ui = new UIObject();
             var dict = ProcessMakeDict(node);
 
-            var ts = fullSearch.Split('"');
-            try
-            {
-                ui.UIName = Outlets.SingleOrDefault(t => t.Value == ts[1]).Key;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Cant find key for {0} : {1}-{2}", ts[1], ex.Message, ex.StackTrace);
-            }
+            ui.UIName =key;
+            Console.WriteLine($"Node name = {ui.UIName}");
 
             try
             {
-                var doc = XDocument.Parse(node);
-
-                var docTS = doc.ToString();
-                Console.WriteLine("docTS = {0}\n", docTS);
-                ui.UIElement = doc.Root.Name.LocalName;
-                Console.WriteLine("Element = {0}", ui.UIElement);
+                ui.UIElement = node.Name.ToString();
 
                 switch (ui.UIElement)
                 {
@@ -196,12 +217,22 @@ namespace xib2xaml
                     case "textView":
                         ui.UIElement = "TextView";
                         break;
+                    case "switch":
+                        ui.UIElement = "Switch";
+                        break;
+                    case "scrollView":
+                        ui.UIElement = "ScrollView";
+                        break;
+                    case "tableView":
+                        ui.UIElement = "TableView";
+                        break;
+                    case "tableViewCell":
+                        ui.UIElement = "TableViewCell";
+                        break;
                     default:
                         ui.UIElement = string.Empty;
                         break;
                 }
-
-                Console.WriteLine("XamForms name = {0}", ui.UIElement);
 
                 if (string.IsNullOrEmpty(ui.UIElement))
                 {
@@ -209,123 +240,168 @@ namespace xib2xaml
                     return;
                 }
 
-                ui.UIXPos = dict.GetKeyValue("x", "0");
-                ui.UIYPos = dict.GetKeyValue("y", "0");
-                ui.UIWidth = dict.GetKeyValue("width", "0");
-                ui.UIHeight = dict.GetKeyValue("height", "0");
+                Console.WriteLine($"UI Element = {ui.UIElement}");
 
-                var align = dict.GetKeyValue("contentHorizontalAlignment", "Left");
-                ui.TextHAlign = align;
-
-                align = dict.GetKeyValue("contentVerticalAlignment", "Left");
-                if (!string.IsNullOrEmpty(align))
-                    ui.TextVAlign = align;
-
-                ui.Opaque = doc.Root.Attribute("opaque").Value;
-
-                switch (ui.UIElement)
+                if (ui.UIElement == "ScrollView")
                 {
-                    case "Button":
-                        ProcessButton(doc);
-                        OutputUIElement(ui);
-                        ui = null;
-                        break;
-                    case "Label":
-                        ProcessLabel(doc);
-                        OutputUIElement(ui);
-                        ui = null;
-                        break;
-                    case "Image":
-                        ProcessImage(doc);
-                        OutputUIElement(ui);
-                        ui = null;
-                        break;
-                    case "Entry":
-                        ProcessEntry(doc);
-                        OutputUIElement(ui);
-                        ui = null;
-                        break;
-                    case "TextView":
-                        ProcessTextView(doc);
-                        OutputUIElement(ui);
-                        ui = null;
-                        break;
+                    ui.UIXPos = dict.GetKeyValue("x", "0");
+                    ui.UIYPos = dict.GetKeyValue("y", "0");
+                    ui.UIWidth = dict.GetKeyValue("width", "0");
+                    ui.UIHeight = dict.GetKeyValue("height", "0");
+                    OutputUIElement(ui, ui.UIElement == "ScrollView");
+                    ui = null;
+                    Console.WriteLine("process scrollview");
+                    ProcessScrollView(node);
+                }
+                else
+                {
+                    switch (ui.UIElement)
+                    {
+                        case "Button":
+                            ProcessButton(node);
+                            break;
+                        case "Label":
+                            ProcessLabel(node);
+                            break;
+                        case "Image":
+                            ProcessImage(node);
+                            break;
+                        case "Entry":
+                            ProcessEntry(node);
+                            break;
+                        case "TextView":
+                            ProcessTextView(node);
+                            break;
+                        case "Switch":
+                            ProcessSwitch(node);
+                            break;
+                        case "TableView":
+                            ProcessTableView(node);
+                            break;
+                    }
+
+                    ui.UIXPos = dict.GetKeyValue("x", "0");
+                    ui.UIYPos = dict.GetKeyValue("y", "0");
+                    ui.UIWidth = dict.GetKeyValue("width", "0");
+                    ui.UIHeight = dict.GetKeyValue("height", "0");
+
+                    try
+                    {
+                        var align = dict.GetKeyValue("contentHorizontalAlignment", "Left");
+                        ui.TextHAlign = align;
+
+                        align = dict.GetKeyValue("contentVerticalAlignment", "Left");
+                        if (!string.IsNullOrEmpty(align))
+                            ui.TextVAlign = align;
+                    }
+                    catch (Exception)
+                    {
+                        Console.WriteLine("Cannot set alignment - no biggy");
+                    }
+
+                    ui.Opaque = node.Attribute("opaque").Value;
+
+                    Console.WriteLine("Xaml name = {0}", ui.UIElement);
+
+                    OutputUIElement(ui, ui.UIElement == "ScrollView");
+                    ui = null;
                 }
             }
             catch (Exception e)
             {
-                Console.WriteLine("Ouch! Xml not nice! - {0}::{1}", e.Message, e.InnerException);
+                Console.WriteLine("Ouch! Xml not nice! - {0}::{1} and {2}", e.Message, e.InnerException, ui?.UIElement);
             }
         }
 
-        void ProcessLabel(XDocument doc)
+        void ProcessScrollView(XElement doc)
         {
-            var dict = ProcessMakeDict(doc.ToString());
+            Console.WriteLine("generate scrollview");
+
+            var t = new List<XElement> { doc };
+            Generator(t, true);
+            //CloseScrollView();
+        }
+
+        void ProcessTableView(XElement doc)
+        {
+            var dict = ProcessMakeDict(doc);
+        }
+
+        void ProcessLabel(XElement doc)
+        {
+            var dict = ProcessMakeDict(doc);
 
             var fontDesc = dict.GetKeyValue("fontDescription");
             if (!string.IsNullOrEmpty(fontDesc))
-                ProcessFont(fontDesc);
+                ProcessFont(fontDesc, doc);
 
             var t1 = dict.GetKeyValue("key");
             if (!string.IsNullOrEmpty(t1))
             {
                 if (t1 == "Normal")
                 {
-                    ProcessColor(dict.GetKeyValue("titleColor"), UITypes.Label);
+                    ProcessColor(dict.GetKeyValue("titleColor"), UITypes.Label, doc);
                 }
             }
 
-            ui.Text = doc.Root.Attribute("text").Value;
+            ui.Text = doc.Attribute("text").Value;
 
-            ui.LineBreakMode = doc.Root.Attribute("lineBreakMode").Value;
-            ui.Enabled = ui.LineBreakMode = doc.Root.Attribute("userInteractionEnabled").Value == "NO" ? "false" : "true";
+            ui.LineBreakMode = doc.Attribute("lineBreakMode").Value;
+            ui.Enabled = ui.LineBreakMode = doc.Attribute("userInteractionEnabled").Value == "NO" ? "false" : "true";
         }
 
-        void ProcessButton(XDocument doc)
+        void ProcessSwitch(XElement doc)
         {
-            var dict = ProcessMakeDict(doc.ToString());
+            ui.ContentHAlign = doc.Attribute("contentHorizontalAlignment").Value;
+            ui.ContentVAlign = doc.Attribute("contentVerticalAlignment").Value;
+
+        }
+
+        void ProcessButton(XElement doc)
+        {
+            var dict = ProcessMakeDict(doc);
 
             var fontDesc = dict.GetKeyValue("fontDescription");
             if (!string.IsNullOrEmpty(fontDesc))
-                ProcessFont(fontDesc);
+                ProcessFont(fontDesc, doc);
 
             var color = dict.GetKeyValue("titleColor");
             if (!string.IsNullOrEmpty(color))
-                ProcessColor(color, UITypes.Button);
+                ProcessColor(color, UITypes.Button, doc);
 
             ui.Text = dict.GetKeyValue("title");
 
-            ui.ContentHAlign = doc.Root.Attribute("contentHorizontalAlignment").Value;
-            ui.ContentVAlign = doc.Root.Attribute("contentVerticalAlignment").Value;
-            ui.LineBreakMode = doc.Root.Attribute("lineBreakMode").Value;
+            ui.ContentHAlign = doc.Attribute("contentHorizontalAlignment").Value;
+            ui.ContentVAlign = doc.Attribute("contentVerticalAlignment").Value;
+            ui.LineBreakMode = doc.Attribute("lineBreakMode").Value;
         }
 
-        void ProcessImage(XDocument doc)
+        void ProcessImage(XElement doc)
         {
-            var dict = ProcessMakeDict(doc.ToString());
+            var dict = ProcessMakeDict(doc);
             ui.ImageName = dict.GetKeyValue("image");
         }
 
-        void ProcessEntry(XDocument doc)
+        void ProcessEntry(XElement doc)
         {
-            var dict = ProcessMakeDict(doc.ToString());
+            var dict = ProcessMakeDict(doc);
 
             var fontDesc = dict.GetKeyValue("fontDescription");
             if (!string.IsNullOrEmpty(fontDesc))
-                ProcessFont(fontDesc);
+                ProcessFont(fontDesc, doc);
 
             var color = dict.GetKeyValue("color");
             if (!string.IsNullOrEmpty(color))
-                ProcessColor(color, UITypes.TextField);
+                ProcessColor(color, UITypes.TextField, doc);
         }
 
-        void ProcessTextView(XDocument doc)
+        void ProcessTextView(XElement doc)
         {
-            var dict = ProcessMakeDict(doc.ToString());
+            var dict = ProcessMakeDict(doc);
 
             var fontDesc = dict.GetKeyValue("fontDescription");
             if (!string.IsNullOrEmpty(fontDesc))
-                ProcessFont(fontDesc);
+                ProcessFont(fontDesc, doc);
 
             var colText = dict.GetKeyValue("titleColor");
             if (!string.IsNullOrEmpty(colText))
@@ -374,79 +450,42 @@ namespace xib2xaml
             }
         }
 
-        NameValueCollection ProcessMakeDict(string doc)
+        NameValueCollection ProcessMakeDict(XElement doc)
         {
-            var ret = doc.Split('\n').ToList();
-            var spc = new List<string>();
-            foreach (var r in ret)
+            var dict = new NameValueCollection
             {
-                if (!string.IsNullOrEmpty(r))
+                { "id", doc.Attribute("id").Value }
+            };
+
+            var elems = doc.Elements();
+
+            foreach (var r in elems)
+            {
+                if (r.HasElements)
                 {
-                    var s = r.Split('"')
-                     .Select((element, index) => index % 2 == 0  // If even index
-                                           ? element.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)  // Split the item
-                                           : new string[] { element })  // Keep the entire item
-                     .SelectMany(element => element).ToList();
-                    
-                    for (var t = 1; t < s.Count; ++t)
+                    var inner = r.Elements();
+                    var attrInner = inner.Attributes();
+                    foreach (var a in attrInner)
                     {
-                        if (s[t].Contains("="))
-                            s[t] = s[t].Remove(s[t].IndexOf("="), 1);
-
-                        if (s[t].Contains("<"))
-                            s[t] = s[t].Remove(s[t].IndexOf("<"), 1);
-
-                        if (!string.IsNullOrEmpty(s[t]))
-                        {
-                            if (!s[t].Contains("<"))
-                            {
-                                if (s[t] == s.Last())
-                                {
-                                    if (s[t].Contains("/>"))
-                                        spc.Add(s[t].Remove(s[t].Length - 2, 2));
-                                    else
-                                        spc.Add(s[t].Remove(s[t].Length - 1, 1));
-                                }
-                                else
-                                    spc.Add(s[t]);
-                            }
-                        }
+                        dict.Add(a.Name.ToString(), a.Value);
                     }
                 }
-            }
-
-            var space = new List<string>();
-            foreach (var n in spc)
-            {
-                if (!string.IsNullOrEmpty(n))
-                    space.Add(n);
-            }
-
-            var split = new List<string>();
-            foreach (var s in space)
-            {
-                if (!string.IsNullOrEmpty(s))
-                    split.AddRange(s.Split('=').ToList());
-            }
-            var dict = new NameValueCollection();
-            var end = split.Count - 1 % 2 == 0 ? split.Count - 1 : split.Count - 2;
-            for (var n = 0; n < end; n += 2)
-            {
-                var first = split[n].Replace("/", "").Replace(">", "") ;
-                var last = split[n + 1].Replace("\"", "");
-                if (!string.IsNullOrEmpty(first))
+                else
                 {
-                    Console.WriteLine("key = {0}, value = {1}", first, last);
-                    dict.Add(first, last);
+                    var attr = r.Attributes();
+                    foreach (var a in attr)
+                    {
+                        dict.Add(a.Name.ToString(), a.Value);
+                    }
                 }
             }
 
             return dict;
         }
 
-        void ProcessFont(string doc)
+        void ProcessFont(string doc, XElement dc)
         {
-            var dict = ProcessMakeDict(doc);
+            var dict = ProcessMakeDict(dc);
 
             var fontType = dict.GetKeyValue("type");
             if (fontType.Contains("bold"))
@@ -457,9 +496,9 @@ namespace xib2xaml
             ui.FontSize = dict.GetKeyValue("pointSize", "14");
         }
 
-        void ProcessColor(string doc, UITypes type)
+        void ProcessColor(string doc, UITypes type, XElement dc)
         {
-            var dict = ProcessMakeDict(doc);
+            var dict = ProcessMakeDict(dc);
             var val = dict.GetKeyValue("key");
 
             switch (type)
@@ -476,6 +515,7 @@ namespace xib2xaml
                             }
                         }
                     }
+
                     break;
                 case UITypes.Button:
                     if (val == "titleColor")
@@ -499,6 +539,7 @@ namespace xib2xaml
                             ui.ColorB = ui.ColorG = ui.ColorR = "255";
                         }
                     }
+
                     break;
             }
         }
@@ -515,6 +556,7 @@ namespace xib2xaml
             else
                 ui.ColorW = col[0];
         }
+
         void ProcessSystemColor(string colType)
         {
             switch (colType)
@@ -680,14 +722,24 @@ namespace xib2xaml
             }
         }
 
-        private void CreateHeader()
+        private void CreateHeader(bool isMaui, string filename)
         {
+            var classpath = filename.LastIndexOf('\\');
+            var classname = filename.Substring(classpath + 1);
             using (var writer = File.CreateText(outfile))
             {
                 writer.WriteLine("<?xml version=\"1.0\" encoding=\"utf-8\" ?>");
-                writer.WriteLine("<ContentPage xmlns=\"http://xamarin.com/schemas/2014/forms\"");
-                writer.WriteLine("xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\"");
-                writer.WriteLine("x:Class=\"HelloXamarinFormsWorldXaml.AbsoluteLayoutExample\"");
+                if (isMaui)
+                {
+                    writer.WriteLine("<ContentPage xmlns=\"http://schemas.microsoft.com/dotnet/2021/maui\"");
+                }
+                else
+                {
+                    writer.WriteLine("<ContentPage xmlns=\"http://xamarin.com/schemas/2014/forms\"");
+                }
+
+                writer.WriteLine("xmlns:x=\"http://schemas.microsoft.com/winfx/2009/xaml\"");
+                writer.WriteLine($"x:Class=\"{classname}\"");
                 writer.WriteLine("Padding=\"20\">");
                 writer.WriteLine();
                 writer.WriteLine("<AbsoluteLayout>");
@@ -697,6 +749,9 @@ namespace xib2xaml
 
         private void CreateFooter()
         {
+            if (hasScrollview)
+                CloseScrollView();
+
             using (var writer = File.AppendText(outfile))
             {
                 writer.WriteLine("</AbsoluteLayout>");
@@ -704,37 +759,49 @@ namespace xib2xaml
             }
         }
 
-        private void OutputUIElement(UIObject ui)
+        void CloseScrollView()
+        {
+            using (var writer = File.AppendText(outfile))
+            {
+                writer.WriteLine("</ScrollView>");
+                writer.WriteLine();
+            }
+        }
+
+        private void OutputUIElement(UIObject ui, bool isScrollView = false)
         {
             Console.WriteLine(ui);
 
             using (var writer = File.AppendText(outfile))
             {
-                writer.WriteLine(string.Format("<{0}", ui.UIElement));
+                writer.WriteLine($"<{ui.UIElement}");
                 if (!string.IsNullOrEmpty(ui.UIName))
-                    writer.WriteLine(string.Format("x:Name=\"{0}\"", ui.UIName));
-                if (ui.UIElement != "imageview")
+                    writer.WriteLine($"x:Name=\"{ui.UIName}\"");
+
+
+                switch (ui.UIElement)
                 {
-                    if (!string.IsNullOrEmpty(ui.Text))
-                        writer.WriteLine(string.Format("Text=\"{0}\"", ui.Text));
-                    if (!string.IsNullOrEmpty(ui.FontSize))
-                        writer.WriteLine(string.Format("TextSize=\"{0}\"", ui.FontSize));
-                    if (!string.IsNullOrEmpty(ui.FontStyle))
-                        writer.WriteLine(string.Format("FontFamily=\"{0}\"", ui.FontStyle));
-                }
-                else
-                {
-                    writer.WriteLine(string.Format("Source=\"{0}\""), ui.ImageName);
+                    case "ImageView":
+                        writer.WriteLine($"Source=\"{ui.ImageName}\"");
+                        break;
+                    case "Entry":
+                    case "Label":
+                    case "TextView":
+                        if (!string.IsNullOrEmpty(ui.Text))
+                            writer.WriteLine($"Text=\"{ui.Text}\"");
+                        if (!string.IsNullOrEmpty(ui.FontSize))
+                            writer.WriteLine($"TextSize=\"{ui.FontSize}\"");
+                        if (!string.IsNullOrEmpty(ui.FontStyle))
+                            writer.WriteLine($"FontFamily=\"{ui.FontStyle}\"");
+                        break;
                 }
 
-                writer.WriteLine(string.Format("AbsoluteLayout.LayoutBounds=\"{0},{1},{2},{3}\"", ui.UIXPos, ui.UIYPos, ui.UIWidth, ui.UIHeight));
+                writer.WriteLine($"AbsoluteLayout.LayoutBounds=\"{ui.UIXPos},{ui.UIYPos},{ui.UIWidth},{ui.UIHeight}\"");
 
-                //if (ui.UIElement != "scrollView")
-                //{
                 if (!string.IsNullOrEmpty(ui.BackgroundColor))
-                    writer.WriteLine(string.Format("BackgroundColor=\"{0}\"", ui.BackgroundColor));
+                    writer.WriteLine($"BackgroundColor=\"{ui.BackgroundColor}\"");
                 if (!string.IsNullOrEmpty(ui.TextColor))
-                    writer.WriteLine(string.Format("TextColor=\"{0}\"", ui.TextColor));
+                    writer.WriteLine($"TextColor=\"{ui.TextColor}\"");
                 else
                 {
                     if (string.IsNullOrEmpty(ui.ColorA))
@@ -744,7 +811,7 @@ namespace xib2xaml
                             int r = (int)(255 * double.Parse(ui.ColorR));
                             int g = (int)(255 * double.Parse(ui.ColorG));
                             int b = (int)(255 * double.Parse(ui.ColorB));
-                            writer.WriteLine(string.Format("TextColor=\"#{0}{1}{2}\"", r.ToString("X"), g.ToString("X"), b.ToString("X")));
+                            writer.WriteLine($"TextColor=\"#{r.ToString("X")}{g.ToString("X")}{b.ToString("X")}\"");
                         }
                     }
                     else
@@ -753,12 +820,20 @@ namespace xib2xaml
                         int r = (int)(255 * double.Parse(ui.ColorR));
                         int g = (int)(255 * double.Parse(ui.ColorG));
                         int b = (int)(255 * double.Parse(ui.ColorB));
-                        writer.WriteLine(string.Format("TextColor=\"#{0}{1}{2}{3}\"", a.ToString("X"), r.ToString("X"), g.ToString("X"), b.ToString("X")));
+                        writer.WriteLine(
+                            $"TextColor=\"#{a.ToString("X")}{r.ToString("X")}{g.ToString("X")}{b.ToString("X")}\"");
                     }
 
                 }
-                //}
-                writer.WriteLine("/>");
+
+                if (!isScrollView)
+                {
+                    writer.WriteLine("/>");
+                }
+                else
+                {
+                    writer.WriteLine(">");
+                }
                 writer.WriteLine();
             }
         }

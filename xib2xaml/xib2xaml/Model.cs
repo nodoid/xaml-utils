@@ -62,6 +62,8 @@ namespace xib2xaml
 
         public string Enabled { get; set; }
 
+        public string SubView { get; set; }
+
     }
 }
 

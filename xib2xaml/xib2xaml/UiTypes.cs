@@ -7,6 +7,9 @@
         Image,
         TextView,
         TextField,
-        Table
+        Table,
+        View,
+        Switch,
+        ScrollView,
     }
 }
