@@ -10,8 +10,8 @@ Usage <tt>xib2xaml -m | -f infile.xib opt-outfile.xaml</tt>
 
 Switches (not optional)
 
--m - MAUI <br />
--f - Xam. Forms
+<tt>-m</tt> - MAUI <br />
+<tt>-f</tt> - Xam. Forms
 
 Infile has to be given, if no outfile is specified, the same filename but with .xaml will be generated
 
